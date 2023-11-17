@@ -1,7 +1,19 @@
 import streamlit as st
+from graficos.graficos_esp.boxplot import boxplot
+from graficos.graficos_esp.continuous import continuous
+from graficos.graficos_esp.heatmap import heatmap
+from graficos.graficos_esp.plot_hull_boxplot import *
 from utilidades import *
 from clases import *
+import pandas as pd
+import plotly.express as px
+import matplotlib.pyplot as plt
+import io
+import base64
+from matplotlib.backends.backend_pdf import PdfPages
+from bd import *
 
+#Traduccion pendiente
 
 def inicio():
     st.header('Chromindex-UdeC')
@@ -128,7 +140,7 @@ def docu():
     st.markdown("""El código fuente está disponible en el siguiente repositorio de GitHub:
     <a href="https://github.com/Zekess/Indices_de_asimetria">**Chromindex-UdeC Repository**</a>.\n""",
                 unsafe_allow_html=True)
-    st.markdown(""" A continuación se detallan los índices que **Chromidex-UdeC** incluye. Notar que
+    st.markdown(""" A continuación se detallan los índices que **Chromindex-UdeC** incluye. Notar que
     en lo que sigue, _n_ representa el número total de cromosomas. Además, la desviación estandar corresponde
     a la desviación estandar de la muestra de cromosomas (insesgada).""", unsafe_allow_html=True)
 
@@ -185,8 +197,44 @@ def docu():
     para cualquier conjunto de cromosomas.""", unsafe_allow_html=True)
 
 
-    write_espacios(2)
 
+    write_espacios(2)
+    st.header('Documentación de gráficos')
+    st.markdown("""Para utilizar la generacion de graficos, es necesario que el archivo tenga un formato de .XLS, .XLSX o .CSV. 
+                Además, las columnas deben seguir el siguiente orden: Taxa, Infrataxa, Población e Índices. Cada columna debe 
+                tener su encabezado correspondiente en la primera fila, y los índices pueden ser de cualquier tipo y estar 
+                dispuestos en cualquier orden. A continuacion, se muestra un ejemplo:""", unsafe_allow_html=True)    
+
+    ejemplo = pd.read_csv("./ejemplo/Baeza_Werdermannii.csv")
+    st.dataframe(ejemplo.set_index(ejemplo.columns[0])[:10], width=1400)
+
+    st.download_button(
+        label="Descargar Ejemplo CSV",
+        data=ejemplo.to_csv().encode('utf-8'),
+        file_name="ejemplo.csv",
+        key='download_button'
+    )
+
+    st.markdown("<h4>Heatmap</h4>", unsafe_allow_html=True)
+    st.markdown("""Su implementación es mediante la función __clustermap__ y el histograma mostrado 
+                en su esquina superior izquierda es mediante la función __histplot__, ambos pertenecientes a la librería __seaborn__. 
+                El escalado de datos se realiza utilizando la puntuación Z, que se aplica de forma independiente a cada columna. 
+                Los dendrogramas se crean utilizando el método de enlace promedio con datos sin estandarizar, y se utiliza 
+                la métrica euclidiana para calcular las distancias entre los puntos.""", unsafe_allow_html=True)
+
+    st.markdown("<h4>Scatter plot with Convex Hull and Boxplots</h4>", unsafe_allow_html=True)
+    st.markdown("""Su implementación es mediante la función __spatial.ConvexHull__ de la librería __scipy__. Los boxplots utilizados 
+                son de la libreria __seaborn__, generados con la función __boxplot__.""", unsafe_allow_html=True)
+    
+    st.markdown("<h4>Boxplot</h4>", unsafe_allow_html=True)
+    st.markdown("""Su implementación es mediante la función __express.box__ de la librería __plotly__.""", unsafe_allow_html=True)
+    
+    st.markdown("<h4>graf 1 2</h4>", unsafe_allow_html=True)
+    st.markdown("""Su implementación es mediante la función __pyplot__ de la librería __matplotlib__.""", unsafe_allow_html=True)
+    
+    
+    
+    write_espacios(2)
     st.caption("<h10>Greilhuber, J., Speta. F. 1976. C-banded karyotypes in the Scilla hohenackeri group, S. persica, \
     and Puschkinia (Liliaceae). Plant Systematics and Evolution 126: 149-188.</h10>", unsafe_allow_html=True)
     st.caption("<h10>Huziwara, Y. 1962. Karyotype analysis in some genera of Compositae. VIII. Further studies on \
@@ -233,3 +281,179 @@ def acerca():
 
     st.caption("<h10>Van Rossum, G. & Drake, F.L., 2009. Python 3 Reference Manual, Scotts Valley, CA: \
                CreateSpace.</h10>", unsafe_allow_html=True)
+
+def selectorGraficos():
+    st.header("Selector de graficos")
+    upload = st.file_uploader(
+        'Subir archivo(s)', 
+        type=['xls', 'xlsx','csv'], 
+        accept_multiple_files=True,
+        on_change=add_sesion_state('uploader_key', 1)
+    )
+    """ check_cvcl=st.checkbox("CVCL Column Plot")
+    check_ltc=st.checkbox("LTC Column Plot")
+    check_heat=st.checkbox("Heatmap")
+    check_scatter=st.checkbox("Scatter plot with Convex Hull and Boxplots")
+    check_boxplot=st.checkbox("Boxplot") """
+    
+    if upload:
+        st.markdown('---')
+        
+        for uploaded_file in upload:
+            # Check the file extension to determine the file type for each uploaded file
+            if uploaded_file.name.endswith(('.xlsx', '.xls')):
+                # Read an Excel file
+                df = pd.read_excel(uploaded_file, engine='openpyxl')
+            elif uploaded_file.name.endswith('.csv'):
+                # Read a CSV file
+                df = pd.read_csv(uploaded_file)
+            else:
+                st.error(f'Formato de archivo no soportado {uploaded_file.name}. Porfavor suba un Excel (.xlsx or .xls) o CSV (.csv) file.')
+                continue  # Skip processing this file and continue with the next
+        
+            # Display the DataFrame for each uploaded file
+            st.subheader(f'Data from {uploaded_file.name}:')
+            st.dataframe(df)
+            selectgraphtype = st.selectbox(
+                'Seleccionar tipo de gráfico:',
+                ("CVCL Column Plot", "LTC Column Plot", "Heatmap", "Scatter plot with Convex Hull and Boxplots", "Boxplot"),
+            )
+            if selectgraphtype == "CVCL Column Plot":
+                # Plot 'CVCL' column
+                plt.figure(figsize=(8, 6))
+                plt.plot(df['CVCL'])
+                plt.title('Gráfico 1: CVCL Column Plot')
+                plt.xlabel('Index')
+                plt.ylabel('CVCL Values')
+                st.pyplot(plt)
+
+            elif selectgraphtype == "LTC Column Plot":
+                # Plot 'LTC' column
+                plt.figure(figsize=(8, 6))
+                plt.plot(df['LTC'])
+                plt.title('Gráfico 2: LTC Column Plot')
+                plt.xlabel('Index')
+                plt.ylabel('LTC Values')
+                st.pyplot(plt)
+            
+            elif selectgraphtype == "Heatmap":
+                heatmap(df)
+            
+            elif selectgraphtype == 'Scatter plot with Convex Hull and Boxplots':
+                plot_convex_hull(df)
+
+            elif selectgraphtype == "Boxplot":
+                st.header("Test Graph")
+                df_data = pd.DataFrame(df, columns=df.columns)
+                infrataxas = dict()
+                for index, value in enumerate(df_data['Infrataxa']):
+                    if value not in infrataxas:
+                        infrataxas[value] = index
+                infrataxas_graph_data = dict()
+                indexes = df_data.iloc[:, 3:]
+                for index, (keys, values) in enumerate(infrataxas.items()):
+                    if index >=0 and index < len(infrataxas) - 1:
+                        infrataxas_graph_data[keys] = df_data.iloc[values:list(infrataxas.values())[index + 1], 3:]
+                    else:
+                        infrataxas_graph_data[keys] = df_data.iloc[values:len(df_data), 3:]
+                    
+                figs = []
+                for (columnName) in indexes.columns:
+                    fig = px.box(df_data, y=columnName, boxmode='group', x="Infrataxa", color="Infrataxa")
+                    fig.update_layout(height=600, width=800)
+                    fig.update_traces(width=0.5)
+                    #fig.update_layout(hovermode=False)
+                    figs.append(fig)
+                for index, figure in enumerate(figs):
+                    st.plotly_chart(figure)   
+
+            formato = st.selectbox("Formato de exportación:", ["PNG", "JPEG", "PDF"])
+
+            if st.button("Exportar gráfico"):
+                # Save Graph
+                buffer = io.BytesIO()
+                if formato == "PNG":
+                    plt.savefig(buffer, format="png")
+                    extension = "png"
+                elif formato == "JPEG":
+                    plt.savefig(buffer, format="jpeg")
+                    extension = "jpg"
+                elif formato == "PDF":
+                    plt.savefig(buffer, format="pdf")
+                    extension = "pdf"
+    
+                # Download graph
+                st.markdown(get_binary_file_downloader_html(buffer, f"gráfico.{extension}", "Descargar Gráfico"), unsafe_allow_html=True)
+    
+    st.subheader("¿Cómo usar?")
+    st.write(
+        """
+        Desarrolladores web usan con frecuencia Chrom-Index como un punto de referencia para optimizar sus 
+        paginas y aplicaciones web para la mejor experiencia de usuario posible en el navegador Chrome. 
+        Provee visiones valiosas sobre que tan eficiente un sitio corre en Chrome y ayuda a 
+        identificar áreas para mejorar. Solo sube tu archivo .xls con el formato correcto y procesaremos 
+        el archivo y generaremos los gráficos.
+        """
+    )
+    st.subheader("¿Qué es Chrom-Index?")
+    st.write(
+        """
+        En el mundo de navegadores web, Chrom-Index es un término que ha estado ganando popularidad 
+        entre tanto entusiastas de tecnología como desarrolladores. Representa una métrica única diseñada 
+        para medir la eficiencia y rendimiento del navegador a través de varias plataformas y dispositivos.
+        """
+    )
+
+def get_binary_file_downloader_html(bin_data, file_label, button_text):
+    data = base64.b64encode(bin_data.getvalue()).decode()
+    href = f'<a href="data:application/octet-stream;base64,{data}" download="{file_label}">{button_text}</a>'
+    return href
+
+def bd():
+
+    st.header('Chromindex-UdeC')
+    
+    create_user()
+    if not 'logeado' in st.session_state:
+        login()
+    ## Uploades de los excels:
+    lista_excels = st.file_uploader('Upload files', type=['xls', 'xlsx'], accept_multiple_files=True,
+                                    on_change=add_sesion_state('uploader_key', 1))
+
+    indices_nombres = [u'A\u2082', 'Ask%', 'CVCI', 'CVCL', 'MCA', 'Syi', 'TF%']
+
+    if ('uploader_key' in st.session_state) & (len(lista_excels) > 0):
+        container_multiselect = st.container()
+        check_all = st.checkbox('Select all')
+        if check_all:
+            indices_seleccionados = container_multiselect.multiselect('Multiselect', indices_nombres, indices_nombres)
+        else:
+            indices_seleccionados = container_multiselect.multiselect('Multiselect', indices_nombres)
+        if st.button('Calculate indices'):
+            df = pd.DataFrame(columns=['File'] + indices_seleccionados)
+
+            for uploader in lista_excels:
+                indices_clase = IndicesDesdeExcel(uploader)
+                indices_dicc = indices_clase.calcular_indices(indices_seleccionados)
+                excel_nombre = uploader.name.split('.xls')[0]
+                df.loc[len(df) + 1] = [excel_nombre] + list(indices_dicc.values())
+            st.dataframe(df)
+            
+            add_sesion_state('db_data', df.to_dict(orient='records'))
+            add_sesion_state('df_resultado', xlsdownload(df))
+
+        if 'df_resultado' in st.session_state:
+            fecha_hoy = datetime.now().strftime(r"%d-%m-%Y_%Hh%Mm%Ss")
+            excel_nombre = f'Indices_{fecha_hoy}.xlsx'
+            st.download_button(
+                label='📥 Download as Excel',
+                data=st.session_state['df_resultado'],
+                file_name=excel_nombre,
+                mime="application/vnd.ms-excel",
+            )
+
+        if 'db_data' in st.session_state and 'logeado' in st.session_state:
+            if st.button('Save to my account'):
+                print(st.session_state['db_data'])
+                guardar(st.session_state['db_data'])  
+    

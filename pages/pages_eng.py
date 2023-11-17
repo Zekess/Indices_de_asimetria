@@ -1,7 +1,17 @@
 import streamlit as st
+from graficos.graficos_eng.boxplot import boxplot
+from graficos.graficos_eng.continuous import continuous
+from graficos.graficos_eng.heatmap import heatmap
+from graficos.graficos_eng.plot_hull_boxplot import *
 from utilidades import *
 from clases import *
-
+import pandas as pd
+import plotly.express as px
+import matplotlib.pyplot as plt
+import io
+import base64
+from matplotlib.backends.backend_pdf import PdfPages
+from bd import *
 
 def home():
     st.header('Chromindex-UdeC')
@@ -74,7 +84,7 @@ def howToUse():
     st.subheader('Test file')
     st.write(
     """
-    You can try Chromidex-UdeC with the following test excel file. It was obtained with MicroMeasure.
+    You can try Chromindex-UdeC with the following test excel file. It was obtained with MicroMeasure.
     """
     )
 
@@ -182,8 +192,46 @@ def docs():
     of the shortest arm of the _i_-th chromosome, respectively. That is, this index is calculated as the sum of the
     lengths of the short arms divided by the sum of the lengths of all the chromosomes. Note that Ask%+TF%=1 for any
     set of chromosomes.""", unsafe_allow_html=True)
-    write_espacios(2)
 
+
+
+    write_espacios(2)
+    st.header('Graphics Documentation')
+    st.markdown("""To generate graphics, the file must be in .XLS, .XLSX, or .CSV format. 
+                Additionally, the columns should follow the following order: Taxa, Infrataxa, Population, and Indices. Each column should 
+                have its corresponding header in the first row, and the indices can be of any type and arranged in any 
+                order. Below is an example:""", unsafe_allow_html=True)
+
+    example = pd.read_csv("./ejemplo/Baeza_Werdermannii.csv")
+    st.dataframe(example.set_index(example.columns[0])[:10], width=1400)
+
+    st.download_button(
+        label="Download CSV Example",
+        data=example.to_csv().encode('utf-8'),
+        file_name="example.csv",
+        key='download_button'
+    )
+
+    st.markdown("<h4>Heatmap</h4>", unsafe_allow_html=True)
+    st.markdown("""Its implementation is done using the __clustermap__ function and the histogram shown 
+                in the upper left corner is created using the __histplot__ function, both belonging to the __seaborn__ library. 
+                Data scaling is performed using Z-scores, applied independently to each column. 
+                Dendrograms are created using the average linkage method with unstandardized data, and 
+                the Euclidean metric is used to calculate distances between points.""", unsafe_allow_html=True)
+
+    st.markdown("<h4>Scatter plot with Convex Hull and Boxplots</h4>", unsafe_allow_html=True)
+    st.markdown("""Its implementation is done using the __spatial.ConvexHull__ function from the __scipy__ library. The boxplots used 
+                are from the __seaborn__ library, generated with the __boxplot__ function.""", unsafe_allow_html=True)
+
+    st.markdown("<h4>Boxplot</h4>", unsafe_allow_html=True)
+    st.markdown("""Its implementation is done using the __express.box__ function from the __plotly__ library.""", unsafe_allow_html=True)
+
+    st.markdown("<h4>Graph 1 2</h4>", unsafe_allow_html=True)
+    st.markdown("""Its implementation is done using the __pyplot__ function from the __matplotlib__ library.""", unsafe_allow_html=True)
+        
+
+
+    write_espacios(2)
     st.caption("<h10>Greilhuber, J., Speta. F. 1976. C-banded karyotypes in the Scilla hohenackeri group, S. persica, \
     and Puschkinia (Liliaceae). Plant Systematics and Evolution 126: 149-188.</h10>", unsafe_allow_html=True)
     st.caption("<h10>Huziwara, Y. 1962. Karyotype analysis in some genera of Compositae. VIII. Further studies on \
@@ -230,3 +278,169 @@ def about():
 
     st.caption("<h10>Van Rossum, G. & Drake, F.L., 2009. Python 3 Reference Manual, Scotts Valley, CA: \
                CreateSpace.</h10>", unsafe_allow_html=True)
+
+def graphSelector():
+    st.header("Graph selector")
+    upload = st.file_uploader(
+        'Upload file(s)', 
+        type=['xls', 'xlsx','csv'], 
+        accept_multiple_files=True,
+        on_change=add_sesion_state('uploader_key', 1)
+    )
+    """ check_cvcl=st.checkbox("CVCL Column Plot")
+    check_ltc=st.checkbox("LTC Column Plot")
+    check_heat=st.checkbox("Heatmap")
+    check_scatter=st.checkbox("Scatter plot with Convex Hull and Boxplots")
+    check_boxplot=st.checkbox("Boxplot") """
+    if upload:
+        st.markdown('---')
+        
+        for uploaded_file in upload:
+            # Check the file extension to determine the file type for each uploaded file
+            if uploaded_file.name.endswith(('.xlsx', '.xls')):
+                # Read an Excel file
+                df = pd.read_excel(uploaded_file, engine='openpyxl')
+            elif uploaded_file.name.endswith('.csv'):
+                # Read a CSV file
+                df = pd.read_csv(uploaded_file)
+            else:
+                st.error(f'Unsupported file format for {uploaded_file.name}. Please upload an Excel (.xlsx or .xls) or CSV (.csv) file.')
+                continue  # Skip processing this file and continue with the next
+        
+            # Display the DataFrame for each uploaded file
+            st.subheader(f'Data from {uploaded_file.name}:')
+            st.dataframe(df)
+            selectgraphtype = st.selectbox(
+                'Select the type of graph:',
+                ('Contunious graph', "Heatmap", "Scatter plot with Convex Hull and Boxplots", "Boxplot"),
+            )
+            if selectgraphtype == 'Contunious graph':
+                continuous(df)
+
+            elif selectgraphtype == "Heatmap":
+                heatmap(df)
+            
+            elif selectgraphtype == 'Scatter plot with Convex Hull and Boxplots':
+                plot_convex_hull(df)
+
+            elif selectgraphtype == "Boxplot":
+                boxplot(df)
+                # st.header("Test Graph")
+                # df_data = pd.DataFrame(df, columns=df.columns)
+                # infrataxas = dict()
+                # for index, value in enumerate(df_data['Infrataxa']):
+                #     if value not in infrataxas:
+                #         infrataxas[value] = index
+                # infrataxas_graph_data = dict()
+                # indexes = df_data.iloc[:, 3:]
+                # for index, (keys, values) in enumerate(infrataxas.items()):
+                #     if index >=0 and index < len(infrataxas) - 1:
+                #         infrataxas_graph_data[keys] = df_data.iloc[values:list(infrataxas.values())[index + 1], 3:]
+                #     else:
+                #         infrataxas_graph_data[keys] = df_data.iloc[values:len(df_data), 3:]
+                    
+                # figs = []
+                # for (columnName) in indexes.columns:
+                #     fig = px.box(df_data, y=columnName, boxmode='group', x="Infrataxa", color="Infrataxa")
+                #     fig.update_layout(height=600, width=800)
+                #     fig.update_traces(width=0.5)
+                #     #fig.update_layout(hovermode=False)
+                #     figs.append(fig)
+                # for index, figure in enumerate(figs):
+                #     st.plotly_chart(figure)              
+
+            formato = st.selectbox("Exportation format:", ["PNG", "JPEG", "PDF"])
+
+            if st.button("Export Graph"):
+                # Save Graph
+                buffer = io.BytesIO()
+                if formato == "PNG":
+                    plt.savefig(buffer, format="png")
+                    extension = "png"
+                elif formato == "JPEG":
+                    plt.savefig(buffer, format="jpeg")
+                    extension = "jpg"
+                elif formato == "PDF":
+                    plt.savefig(buffer, format="pdf")
+                    extension = "pdf"
+    
+                # Download graph
+                st.markdown(get_binary_file_downloader_html(buffer, f"graph.{extension}", "Download Graph"), unsafe_allow_html=True)
+
+
+    st.subheader("How to use?")
+    st.write(
+        """
+        Web developers often use the Chrom-Index as a reference point to optimize their 
+        websites and web applications for the best possible user experience on the Chrome browser.
+        It provides valuable insights into how efficiently a site runs on Chrome and helps 
+        identify areas for improvement. Just upload your .xls file with the correct format and we 
+        will process the file and generate the graphs.
+        """
+    )
+    st.subheader("What is Chrom-Index?")
+    st.write(
+        """
+        In the world of web browsers, the Chrom-Index is a term that has been gaining popularity 
+        among tech enthusiasts and developers alike. It represents a unique metric designed to 
+        measure the efficiency and performance of the browser across various platforms and devices.
+        """
+    )
+
+def get_binary_file_downloader_html(bin_data, file_label, button_text):
+    data = base64.b64encode(bin_data.getvalue()).decode()
+    href = f'<a href="data:application/octet-stream;base64,{data}" download="{file_label}">{button_text}</a>'
+    return href
+
+def db():
+    st.header('Chromindex-UdeC')
+    
+    create_user()
+    if not 'logeado' in st.session_state:
+        login()
+    else:
+        username = st.session_state["logeado"]
+        st.header(f"Welcome {username}")
+                  
+    ## Uploades de los excels:
+    lista_excels = st.file_uploader('Upload files', type=['xls', 'xlsx'], accept_multiple_files=True,
+                                    on_change=add_sesion_state('uploader_key', 1))
+
+    indices_nombres = [u'A\u2082', 'Ask%', 'CVCI', 'CVCL', 'MCA', 'Syi', 'TF%']
+
+    if ('uploader_key' in st.session_state) & (len(lista_excels) > 0):
+        container_multiselect = st.container()
+        check_all = st.checkbox('Select all')
+        if check_all:
+            indices_seleccionados = container_multiselect.multiselect('Multiselect', indices_nombres, indices_nombres)
+        else:
+            indices_seleccionados = container_multiselect.multiselect('Multiselect', indices_nombres)
+        if st.button('Calculate indices'):
+            df = pd.DataFrame(columns=['File'] + indices_seleccionados)
+
+            for uploader in lista_excels:
+                indices_clase = IndicesDesdeExcel(uploader)
+                indices_dicc = indices_clase.calcular_indices(indices_seleccionados)
+                excel_nombre = uploader.name.split('.xls')[0]
+                df.loc[len(df) + 1] = [excel_nombre] + list(indices_dicc.values())
+            st.dataframe(df)
+            
+            add_sesion_state('db_data', df.to_dict(orient='records'))
+            add_sesion_state('df_resultado', xlsdownload(df))
+
+        if 'df_resultado' in st.session_state:
+            fecha_hoy = datetime.now().strftime(r"%d-%m-%Y_%Hh%Mm%Ss")
+            excel_nombre = f'Indices_{fecha_hoy}.xlsx'
+            st.download_button(
+                label='📥 Download as Excel',
+                data=st.session_state['df_resultado'],
+                file_name=excel_nombre,
+                mime="application/vnd.ms-excel",
+            )
+
+        if 'db_data' in st.session_state and 'logeado' in st.session_state:
+            if st.button('Save to my account'):
+                print(st.session_state['db_data'])
+                guardar(st.session_state['db_data'])  
+            
+
